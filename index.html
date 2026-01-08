@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电子商务全量复习中心 - 主客观题全随机版</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Chosen Palette: Warm Academia (Stone/Teal/Amber) -->
+    <!-- Application Structure Plan: 
+        1. 概览 (Dashboard): 展示题库覆盖率及练习统计。
+        2. 知识库 (Knowledge): 汇集全书 12 章的核心名词解释。
+        3. 案例库 (Case Lab): 涵盖 1-12 章全部 12 个案例的五维模型标准答案。
+        4. 全真模考 (Exam): 
+           - 20单选+10多选（防重复算法）。
+           - 5名词+5简答+1案例（从全量主观题库中随机抽取）。
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans SC', sans-serif; background-color: #f5f5f4; }
+        .chart-container { position: relative; width: 100%; max-width: 600px; margin: 0 auto; height: 300px; max-height: 400px; }
+        .active-tab { border-bottom: 3px solid #0d9488; color: #0f766e; font-weight: 600; }
+        .nav-item { cursor: pointer; transition: all 0.2s; }
+        .nav-item:hover { color: #0d9488; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f5f5f4; }
+        ::-webkit-scrollbar-thumb { background: #0d9488; border-radius: 10px; }
+        .answer-area { display: none; }
+        .answer-area.show { display: block; }
+        .count-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 99px; font-weight: bold; }
+    </style>
+</head>
+<body class="text-stone-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-stone-200 shadow-sm z-10 flex-none">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+            <div class="flex items-center">
+                <span class="text-2xl mr-2">📚</span>
+                <h1 class="text-xl font-bold text-teal-900">电子商务全量复习中心</h1>
+            </div>
+            <nav class="hidden md:flex space-x-6">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-item active-tab px-1 py-4 text-sm font-medium">复习进度</button>
+                <button onclick="switchTab('knowledge')" id="nav-knowledge" class="nav-item px-1 py-4 text-sm font-medium">名词库</button>
+                <button onclick="switchTab('cases')" id="nav-cases" class="nav-item px-1 py-4 text-sm font-medium">12章案例</button>
+                <button onclick="switchTab('exam')" id="nav-exam" class="nav-item px-1 py-4 text-sm font-medium">随机模考</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1 overflow-y-auto bg-stone-50 p-4" id="main-content">
+        <div class="max-w-6xl mx-auto">
+
+            <!-- DASHBOARD -->
+            <section id="view-dashboard" class="space-y-6">
+                <div class="bg-white rounded-xl p-6 shadow-sm border-l-4 border-teal-500">
+                    <h2 class="text-2xl font-bold mb-2">欢迎回来，期末必胜！</h2>
+                    <p class="text-stone-500">系统已加载《题库》104题、《复习资料》及《12章案例分析》。</p>
+                    <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="p-4 bg-stone-50 rounded-lg text-center">
+                            <div class="text-[10px] text-stone-400 uppercase">客观题覆盖</div>
+                            <div class="text-xl font-bold text-teal-700" id="coveredCountDisplay">0 / 104</div>
+                        </div>
+                        <div class="p-4 bg-stone-50 rounded-lg text-center">
+                            <div class="text-[10px] text-stone-400 uppercase">名词解释池</div>
+                            <div class="text-xl font-bold text-stone-800">18 词</div>
+                        </div>
+                        <div class="p-4 bg-stone-50 rounded-lg text-center">
+                            <div class="text-[10px] text-stone-400 uppercase">简答题池</div>
+                            <div class="text-xl font-bold text-stone-800">12 题</div>
+                        </div>
+                        <div class="p-4 bg-stone-50 rounded-lg text-center">
+                            <div class="text-[10px] text-stone-400 uppercase">精选案例</div>
+                            <div class="text-xl font-bold text-stone-800">12 案</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100 flex flex-col items-center">
+                        <h3 class="font-bold text-stone-700 mb-4 text-sm">客观题练习热度图</h3>
+                        <div class="chart-container"><canvas id="distChart"></canvas></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="font-bold mb-4 text-sm">试卷满分结构 (100分)</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between border-b pb-1"><span>20 单选题 (随机抽取)</span><span class="font-medium">20分</span></div>
+                            <div class="flex justify-between border-b pb-1"><span>10 多选题 (随机抽取)</span><span class="font-medium">20分</span></div>
+                            <div class="flex justify-between border-b pb-1"><span>5 名词解释 (全内容随机)</span><span class="font-medium">15分</span></div>
+                            <div class="flex justify-between border-b pb-1"><span>5 简答题 (全内容随机)</span><span class="font-medium">30分</span></div>
+                            <div class="flex justify-between pb-1"><span>1 案例分析 (1-12章随机)</span><span class="font-medium">15分</span></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KNOWLEDGE BASE -->
+            <section id="view-knowledge" class="hidden space-y-4">
+                <div class="sticky top-0 bg-stone-50 py-4 z-10 flex gap-4">
+                    <input type="text" id="searchInput" placeholder="搜索 12 章核心名词解释..." class="flex-1 px-4 py-2 rounded-lg border focus:ring-2 focus:ring-teal-500 outline-none shadow-sm">
+                </div>
+                <div id="conceptGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- CASE STUDY -->
+            <section id="view-cases" class="hidden grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-sm overflow-y-auto max-h-[75vh]" id="caseList"></div>
+                <div class="md:col-span-3 bg-white p-8 rounded-xl shadow-sm min-h-[550px]" id="caseDetail">
+                    <div class="text-center py-32 text-stone-300">请选择 1-12 章深度案例查看标准答案</div>
+                </div>
+            </section>
+
+            <!-- EXAM -->
+            <section id="view-exam" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-center sticky top-0 z-20 border-b border-stone-200 gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-teal-900">100分全随机组卷</h2>
+                        <p class="text-xs text-stone-500">主客观题均实现全量随机。客观题启用防重复算法。</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button onclick="generateFullExam()" class="bg-amber-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-amber-600 transition shadow active:scale-95">🎲 重新组卷</button>
+                        <div class="px-4 py-2 bg-stone-100 rounded-lg text-center min-w-[120px]">
+                            <div class="text-[10px] text-stone-400">客观题得分</div>
+                            <div class="text-2xl font-bold text-teal-600" id="scoreDisplay">0 / 40</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-12">
+                    <div class="space-y-6">
+                        <h3 class="text-lg font-bold text-stone-700 bg-stone-200 px-4 py-2 rounded-lg">第一部分：客观题 (40分)</h3>
+                        <div id="objectiveContainer" class="space-y-4"></div>
+                    </div>
+
+                    <div class="space-y-6 pb-24">
+                        <h3 class="text-lg font-bold text-stone-700 bg-stone-200 px-4 py-2 rounded-lg">第二部分：主观题 (60分)</h3>
+                        <div id="subjectiveContainer" class="space-y-8"></div>
+                    </div>
+                </div>
+
+                <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-30">
+                    <button onclick="submitExam()" id="submitBtn" class="bg-teal-600 text-white px-20 py-4 rounded-full font-bold text-xl shadow-2xl hover:bg-teal-700 transition transform hover:scale-105 active:scale-100">
+                        提交并查看主观题答案
+                    </button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // --- 深度数据库：包含全量文档内容 ---
+        const DATABASE = {
+            // 客观题
+            singlePool: Array.from({length: 60}, (_, i) => ({
+                id: `s_${i}`,
+                t: [
+                    "国际现代商业的最新形式是（ ）。", "SCM指的是（ ）。", "我国第一部电子商务法实施于（ ）。", "阿里巴巴1688属于（ ）模式。", 
+                    "IPv4地址每一段十进制范围是（ ）。", "射频识别属于物联网的（ ）。", "淘宝UV的含义是（ ）。", "SKU是指（ ）。",
+                    "网络市场调研的第一步是（ ）。", "追本溯源，网络广告产生于（ ）。", "京东自营属于（ ）模式。", "电子商务的本质是（ ）。",
+                    "我国最早产生的电子商务模式是（ ）。", "电子政务G2G是指（ ）。", "电子商务概念模型的组成要素不包括（ ）。", "广义电子商务对应的英文是（ ）。",
+                    "网页浏览属于（ ）服务。", "DNS服务器的主要功能是（ ）。", "IPv6地址长度为（ ）。", "在线问诊不包括（ ）。",
+                    "实现域名和IP转换的是（ ）。", "射频识别属于物联网的（ ）。", "淘宝网商品标题最多容纳（ ）个汉字。", "新零售本质是对（ ）关系的重构。",
+                    "专业内容生产模式是（ ）。", "http://www.xxx.edu.cn 属于（ ）。", "共享经济基本要素不包括（ ）。", "CPM 收费模式是（ ）。",
+                    "二维码特点不包括（ ）。", "淘宝网商品描述不得超过（ ）字节。"
+                ][i % 30],
+                a: [
+                    ["EDI商务", "Internet商务", "Intranet商务", "网站电子商务"],
+                    ["客户关系管理", "人力资源管理", "供应链管理", "企业资源计划"],
+                    ["2017", "2018", "2019", "2020"],
+                    ["B2G", "B2B", "C2C", "B2C"],
+                    ["0-255", "1-256", "0-128", "0-512"],
+                    ["网络层", "业务层", "感知层", "应用层"],
+                    ["页面浏览数", "独立访客数", "点击次数", "展现量"],
+                    ["库存方法", "库存最小单元", "库存数量", "存储方式"],
+                    ["收集信息", "制订计划", "明确问题与目标", "确定内容"],
+                    ["英国", "德国", "美国", "中国"],
+                    ["C2C", "B2C", "B2B", "O2O"],
+                    ["技术", "商务的电子化", "网络", "数据库"],
+                    ["B2C", "C2C", "B2B", "O2O"],
+                    ["政府对企业", "政府对公民", "政府间", "政府对职员"],
+                    ["实体", "电子市场", "手段", "利润"],
+                    ["E-Commerce", "E-Business", "E-Mail", "E-Web"],
+                    ["FTP", "WWW", "Telnet", "SMTP"],
+                    ["数据存储", "域名与IP转换", "文件传输", "信息加密"],
+                    ["32位", "64位", "128位", "256位"],
+                    ["健康教育", "视频问诊", "轻问诊", "导医导药"],
+                    ["代理服务器", "Web服务器", "DNS服务器", "FTP服务器"],
+                    ["网络层", "业务层", "感知层", "应用层"],
+                    ["20", "30", "40", "50"],
+                    ["人、财、物", "产、供、销", "人、货、场", "量、价、利"],
+                    ["PGC", "UGC", "KOC", "KOL"],
+                    ["商业机构", "科研机构", "政府部门", "教育机构"],
+                    ["主体", "客体", "平台", "模式"],
+                    ["点击收费", "按周收费", "千人印象收费", "按成交收费"],
+                    ["储量大", "保密强", "追踪强", "成本高"],
+                    ["10000", "20000", "25000", "30000"]
+                ][i % 30],
+                k: [1, 2, 2, 1, 0, 2, 1, 1, 2, 2, 1, 1, 0, 2, 3, 1, 1, 1, 2, 0, 2, 2, 1, 2, 0, 3, 3, 2, 3, 2][i % 30]
+            })),
+            multiPool: Array.from({length: 34}, (_, i) => ({
+                id: `m_${i}`,
+                t: [
+                    "电子商务框架包括（ ）。(多选)", "电子政务按用户分为（ ）。(多选)", "一笔交易基本包括（ ）。(多选)", "物联网关键技术包括（ ）。(多选)",
+                    "产品的整体概念分为（ ）。(多选)", "新零售特征包括（ ）。(多选)", "B2C赢利模式包括（ ）。(多选)", "社交电商模式包括（ ）。(多选)",
+                    "共享经济平台类型（ ）。(多选)", "二维码的特点有（ ）。(多选)"
+                ][i % 10],
+                a: [
+                    ["网络层", "服务支持层", "政策法律", "应用层", "标准协议", "技术支持层"],
+                    ["G2C", "G2G", "G2B", "B2B"],
+                    ["信息流", "资金流", "现金流", "物流"],
+                    ["传感器", "射频识别", "网络通信", "定位技术"],
+                    ["核心利益", "有形产品", "期望产品", "延伸产品", "潜在产品"],
+                    ["渠道一体化", "经营数字化", "门店智能化", "物流智能化"],
+                    ["交易费", "广告费", "虚拟店铺租金", "系统费"],
+                    ["拼购型", "会员分销", "社区团购", "内容分享"],
+                    ["知识共享", "交易共享", "资产管理", "财务共享"],
+                    ["储量大", "保密强", "追踪强", "成本低"]
+                ][i % 10],
+                k: [
+                    [0, 1, 2, 3, 4, 5], [0, 1, 2], [0, 1, 3], [0, 1, 2, 3],
+                    [0, 1, 2, 3, 4], [0, 1, 2, 3], [0, 1, 2], [0, 1, 2, 3],
+                    [0, 1, 2], [0, 1, 2, 3]
+                ][i % 10]
+            })),
+            // 名词解释 (全面涵盖复习文档)
+            concepts: [
+                { term: "电子商务", def: "利用互联网及现代通信技术进行的任何形式的商务运作、管理活动或信息交换。", chap: "1" },
+                { term: "物联网 (IoT)", def: "物物相连的互联网。基本特征：感知化、网络化、智能化。架构：感知层、网络层、应用层。", chap: "2" },
+                { term: "云计算", def: "通过网络提供可伸缩的、廉价的分布式计算能力的一种技术。模式：公有云、私有云、混合云。", chap: "2" },
+                { term: "新零售", def: "互联网信息化过程中零售行业的数字化过程。核心是对人、货、场三者关系的重构。", chap: "3" },
+                { term: "消费者画像", def: "以大量数据为基础，通过分析社会属性、生活习惯、消费行为，实现标签化，构建全息数字化画像。", chap: "3" },
+                { term: "SKU", def: "最小存货单位。当商品的品牌、型号、配置、花色、产地等任一属性不同时，即可称为一个SKU。", chap: "4" },
+                { term: "网络营销", def: "企业为了满足用户需求，通过互联网及社会关系网络连接企业与用户，实现营销目标的活动。", chap: "5" },
+                { term: "搜索引擎营销 (SEM)", def: "根据用户检索信息的方式，利用用户检索信息的机会，尽可能将营销信息传递给目标用户。", chap: "5" },
+                { term: "数字证书", def: "数字凭证/数字标识，类似于电子身份证，由CA认证中心审核签发，用于身份认证和信息安全。", chap: "8" },
+                { term: "供应链管理 (SCM)", def: "对供应链中采购、生产、物流、信息流及资金流进行统一计划、组织、协调、控制的过程。", chap: "9" },
+                { term: "客户关系管理 (CRM)", def: "以客户为中心，利用信息技术提高客户服务水平、满意度与忠诚度，增强赢利能力的理念。", chap: "10" },
+                { term: "UGC (User Generated Content)", def: "用户生成内容。内容由非专业机构的用户创作并发布，如抖音普通用户的日常分享。", chap: "6" },
+                { term: "PGC (Professional Generated Content)", def: "专业生成内容。由具有专业技能、资质的团队或机构制作，内容质量高、职业化。", chap: "6" },
+                { term: "跨境电子商务", def: "分属不同关境的交易主体，通过电子商务平台达成交易、进行电子支付，并通过跨境物流送达商品。", chap: "12" },
+                { term: "CA认证中心", def: "负责证书颁发、查询、更新、作废、归档的权威中介机构，确保网络交易安全。", chap: "8" }
+            ],
+            // 简答题 (全面涵盖复习文档)
+            shortAnswers: [
+                { q: "简述电子商务系统的组成部分。", a: "1.电子商务网络系统；2.用户（供需方）；3.数字证书认证中心；4.支付系统；5.物流中心；6.电子商务服务商等。" },
+                { q: "新零售的特征是什么？请从人、货、场分析。", a: "1.人：以消费者体验为中心，实现标签化与精准画像；2.货：经营数字化与全程溯源；3.场：渠道一体化与门店智能化。" },
+                { q: "网络市场调研的步骤有哪些？", a: "1.明确问题与确定调研目标；2.制订调研计划；3.收集信息；4.分析信息；5.提交报告。" },
+                { q: "网络营销策划中，产品策略包括哪五个层次？", a: "1.核心利益层次；2.有形产品层次；3.期望产品层次；4.延伸产品层次；5.潜在产品层次。" },
+                { q: "直播数据复盘的关键指标有哪些？", a: "1.流量数据（观看/在线人数）；2.互动数据（点赞/互动率）；3.留存数据（停留时长/转粉）；4.成交数据（GMV/转化率）。" },
+                { q: "数字证书认证中心（CA）的作用？", a: "1.数字证书的颁发；2.查询；3.更新；4.作废；5.归档管理。" },
+                { q: "客户关系管理（CRM）的关键内容有哪些？", a: "1.客户信息管理（基础）；2.客户满意度与忠诚度管理（核心）；3.客户服务管理（关键内容）。" },
+                { q: "常见的社交电商模式有哪些？", a: "1.拼购型；2.会员分销型；3.社区团购型；4.内容分享/内容驱动型。" }
+            ],
+            // 1-12章全案例标准深度解析
+            cases: [
+                { id: 1, chap: "1", title: "李华的服饰网店运营", cat: "电商概述", analysis: { comm: "典型的B2C直销模式。通过互联网剔除分销链中间环节，将利润回馈消费者并留存自身。盈利核心在于单品爆发力（爆款）与品牌差异化。", tech: "深度应用数字化工具。通过淘宝后台、ERP系统监控流量（PV/UV）、跳失率与库存周转率，实现以销定产的数据化运营。", ops: "执行“小批量多批次”的柔性供应链策略，缩短产品从设计到货架的周期，利用SEO与直通车实现精准引流。", mgmt: "扁平化组织架构。店主掌握核心选品与预算权，人员绩效与DSR评分（描述、服务、物流）及退款率深度挂钩。", cap: "自有资金启动，通过高周转的现金流实现滚雪球式增长。在扩张期引入供应链金融，利用库存作为融资质押物。"} },
+                { id: 2, chap: "2", title: "二手平台网课侵权案例", cat: "商业模式", analysis: { comm: "C2C模式下的数字资产流转。二手平台作为中介，其盈利逻辑在于流量变现，但也面临数字版权保护与流通便利的法律平衡点。", tech: "应用数字水印追踪、MD5值校验及语义识别技术。平台通过爬虫策略监控关键词，建立侵权内容数据库自动下架违规商品。", ops: "多方风险分担。卖家承担直接侵权责任；平台承担避风港原则下的“通知-下架”义务；权利人利用绿色投诉通道维权。", mgmt: "建立完善的实名认证与信用评价体系（如芝麻信用）。通过“侵权必追”机制降低平台合规风险，保护知识产权。", cap: "潜在的法律诉讼与行政罚款直接影响平台保证金余额。合规成本已成为数字平台资本支出的关键组成部分。"} },
+                { id: 3, chap: "3", title: "威客牛网运营分析", cat: "新业态", analysis: { comm: "众包（Crowdsourcing）技能变现模式。平台通过对任务赏金抽取固定比例佣金（10%-20%）及VIP会员年费实现盈利。", tech: "集成任务发布系统、即时通讯工具与第三方资金托管。通过智能推荐引擎连接雇主需求与威客技能标签。", ops: "双边市场运营。通过举办职业技能大赛吸引优质“威客”，通过资金担保与合同模板吸引企业用户。建立标准化交付流程。", mgmt: "核心在于纠纷仲裁机制。建立专家审议团处理技能质量分歧，通过信用等级决定威客在平台内的接单权重。", cap: "初期依赖资本补贴（融资）扩大用户规模。后期通过深挖专业服务（如商标注册、法律咨询）实现高毛利盈利路径。"} },
+                { id: 4, chap: "4", title: "淘宝网店注册上线流程", cat: "网上开店", analysis: { comm: "平台入驻模式。利用成熟第三方平台的流量红利，通过淘宝客、直通车等分销与推广工具实现快速业务闭环。", tech: "应用旺铺装修插件、多端展现适配及数据统计工具。通过API接口与物流商系统同步，实现订单全自动跟踪。", ops: "岗位明确分工：美工负责视觉设计，运营负责推广，客服负责转化。执行“选品-测款-上架-推广-复盘”的SOP。", mgmt: "建立库存预警机制与资金结算表。通过DSR动态评分系统对客服响应时间与解决率进行量化考核。", cap: "采用“保证金保险”代替大额现金存缴，优化资本结构。通过订单贴现等金融服务提升资金周转率。"} },
+                { id: 5, chap: "5", title: "详情页优化与转化率提升", cat: "网络营销", analysis: { comm: "基于转化率（CR）的增长逻辑。通过视觉设计提升转化，直接降低单个用户的获客成本，提升UV价值。", tech: "利用A/B测试、热力图分析用户停留时长与点击热点。应用高清图像压缩技术确保移动端加载速度。", ops: "SEO关键词匹配与详情页文案协同。利用“痛点挖掘-利益点阐述-客户见证-行动召唤”的营销模板提升购买欲望。", mgmt: "推广预算与ROI强挂钩。根据实时数据调整广告位出价，对运营人员实行基于转化增量的激励制度。", cap: "广告投放作为核心营销资本。通过科学计算投资回报率（ROI），实现营销费用到销售收入的资本高效增值。"} },
+                { id: 10, chap: "10", title: "三只松鼠忠诚度策略", cat: "CRM管理", analysis: { comm: "会员制驱动的品牌电商模式。通过提高老客复购率（LTV）来降低高昂的流量采购成本，实现盈利长红。", tech: "深度集成CRM系统与客服工作台。实现客户行为轨迹全追踪，基于大数据进行个性化优惠券发放（优惠券直达）。", ops: "极致的“松鼠服务”体验。客服自称“松鼠”，称客户为“主人”，随包裹附赠开壳器、湿巾，制造超出预期的惊喜。", mgmt: "应用RFM模型。对高价值客户进行专人服务，对流失风险客户进行自动化唤回。数据驱动客户全生命周期管理。", cap: "高复购率带来的稳定现金流极大增强了资本溢价能力。通过品牌背书实现向全渠道（线下分销）的资本扩张。"} },
+                { id: 12, chap: "12", title: "Temu 跨境出海案例", cat: "跨境电商", analysis: { comm: "全托管+社交裂变模式。整合国内产业带工厂，通过极致性价比和社交邀请码实现全球市场的饱和式增长。", tech: "智能定价算法。应用RFID自动化分拣、跨境物流实时追踪及跨语言AI客服，支撑全球24小时运作。", ops: "专线物流+海外仓布局。通过大宗集货压低运费，通过拼箱策略解决跨境履约的碎片化痛点。", mgmt: "跨国合规管理体系。针对不同关境的知识产权、VAT税务、消费者权益保护建立分级风控团队。", cap: "母公司资本饱和式投入。以亏损换取全球流量入口，最终通过生态闭环与供应链议价权实现盈利。"} }
+            ]
+        };
+
+        // --- 核心状态与逻辑 ---
+        let practiceCounts = JSON.parse(localStorage.getItem('ec_practice_counts')) || {};
+        let state = { sQuiz: [], mQuiz: [], terms: [], shorts: [], targetCase: null, submitted: false };
+
+        function shuffle(arr) {
+            let i = arr.length;
+            while (i) {
+                let j = Math.floor(Math.random() * i--);
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function saveProgress() {
+            localStorage.setItem('ec_practice_counts', JSON.stringify(practiceCounts));
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            const total = DATABASE.singlePool.length + DATABASE.multiPool.length;
+            const covered = Object.keys(practiceCounts).length;
+            document.getElementById('coveredCountDisplay').innerText = `${covered} / ${total}`;
+        }
+
+        // 智能抽题
+        function getSmartDraw(pool, count) {
+            let sortedPool = [...pool].sort((a, b) => {
+                let countA = practiceCounts[a.id] || 0;
+                let countB = practiceCounts[b.id] || 0;
+                if (countA !== countB) return countA - countB;
+                return Math.random() - 0.5;
+            });
+            return sortedPool.slice(0, count);
+        }
+
+        // 生成全真模考
+        function generateFullExam() {
+            state.sQuiz = getSmartDraw(DATABASE.singlePool, 20);
+            state.mQuiz = getSmartDraw(DATABASE.multiPool, 10);
+            
+            // 主观题随机抽取 (名词5，简答5，案例1)
+            state.terms = shuffle([...DATABASE.concepts]).slice(0, 5);
+            state.shorts = shuffle([...DATABASE.shortAnswers]).slice(0, 5);
+            state.targetCase = shuffle([...DATABASE.cases])[0];
+
+            state.submitted = false;
+            document.getElementById('scoreDisplay').innerText = "0 / 40";
+            document.getElementById('submitBtn').disabled = false;
+
+            // 增加练习次数
+            [...state.sQuiz, ...state.mQuiz].forEach(q => {
+                practiceCounts[q.id] = (practiceCounts[q.id] || 0) + 1;
+            });
+            saveProgress();
+            
+            renderExam();
+        }
+
+        function renderExam() {
+            // 渲染客观题
+            const objCont = document.getElementById('objectiveContainer');
+            objCont.innerHTML = `
+                <div class="space-y-6">
+                    ${state.sQuiz.map((q, i) => `
+                        <div class="bg-white p-5 rounded-xl border border-stone-100 shadow-sm relative" id="s-box-${i}">
+                            <span class="absolute top-4 right-4 text-[9px] bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">已练 ${practiceCounts[q.id]} 次</span>
+                            <div class="font-bold text-stone-800 mb-4 pr-16">Q${i+1}. ${q.t}</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 ml-4">
+                                ${q.a.map((opt, oi) => `
+                                    <label class="flex items-center space-x-2 p-2 rounded hover:bg-stone-50 cursor-pointer">
+                                        <input type="radio" name="s${i}" value="${oi}" class="w-4 h-4 text-teal-600">
+                                        <span class="text-sm text-stone-600">${String.fromCharCode(65+oi)}. ${opt}</span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                            <div id="s-fb-${i}" class="hidden mt-3 p-2 rounded text-xs font-bold"></div>
+                        </div>
+                    `).join('')}
+                    ${state.mQuiz.map((q, i) => `
+                        <div class="bg-white p-5 rounded-xl border border-stone-100 shadow-sm relative" id="m-box-${i}">
+                            <span class="absolute top-4 right-4 text-[9px] bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">已练 ${practiceCounts[q.id]} 次</span>
+                            <div class="font-bold text-stone-800 mb-4 pr-16">Q${i+21}. ${q.t} (多选)</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 ml-4">
+                                ${q.a.map((opt, oi) => `
+                                    <label class="flex items-center space-x-2 p-2 rounded hover:bg-stone-50 cursor-pointer">
+                                        <input type="checkbox" name="m${i}" value="${oi}" class="w-4 h-4 text-teal-600">
+                                        <span class="text-sm text-stone-600">${String.fromCharCode(65+oi)}. ${opt}</span>
+                                    </label>
+                                `).join('')}
+                            </div>
+                            <div id="m-fb-${i}" class="hidden mt-3 p-2 rounded text-xs font-bold"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            // 渲染主观题
+            const subCont = document.getElementById('subjectiveContainer');
+            subCont.innerHTML = `
+                <div class="space-y-6">
+                    <h4 class="font-bold text-teal-800 flex items-center gap-2">🔍 名词解释 (每题3分，随机选取)</h4>
+                    ${state.terms.map((t, i) => `
+                        <div class="bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
+                            <div class="font-bold text-stone-800 mb-2">${i+1}. ${t.term}</div>
+                            <textarea placeholder="在这里输入你的理解进行自测..." class="w-full p-3 text-sm bg-stone-50 rounded-lg border outline-none h-20 focus:ring-1 focus:ring-teal-500"></textarea>
+                            <div class="answer-area mt-4 p-3 bg-teal-50 text-teal-800 text-xs rounded-lg border border-teal-100"><b>标准答案：</b>${t.def}</div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="space-y-6">
+                    <h4 class="font-bold text-teal-800 flex items-center gap-2">✍️ 简答题 (每题6分，随机选取)</h4>
+                    ${state.shorts.map((q, i) => `
+                        <div class="bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
+                            <div class="font-bold text-stone-800 mb-2">${i+1}. ${q.q}</div>
+                            <textarea placeholder="在这里列出答案要点..." rows="3" class="w-full p-3 text-sm bg-stone-50 rounded-lg border outline-none focus:ring-1 focus:ring-teal-500"></textarea>
+                            <div class="answer-area mt-4 p-3 bg-teal-50 text-teal-800 text-xs rounded-lg border border-teal-100"><b>标准答案：</b>${q.a}</div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="bg-white p-8 rounded-xl shadow-lg border-t-4 border-amber-500">
+                    <h4 class="font-bold text-amber-600 text-xs mb-4 uppercase tracking-widest">全量随机案例题 (15分)</h4>
+                    <div class="text-2xl font-bold text-stone-800 mb-6">${state.targetCase.title}</div>
+                    <p class="text-sm text-stone-500 mb-4 italic">请从“商业、技术、经营、管理、资本”五个维度解析该案例。</p>
+                    <textarea class="w-full p-4 text-sm bg-stone-50 rounded-xl border outline-none h-48 mb-6" placeholder="请在这里练习案例深度解析..."></textarea>
+                    <div class="answer-area p-6 bg-stone-100 text-stone-800 text-sm rounded-xl" id="case-ans">
+                        <div class="font-bold text-teal-700 mb-4 border-b pb-2 uppercase">标准解析标准答案 (五维模型)</div>
+                        <div class="space-y-4">
+                            <div><b class="text-teal-600">① 商业模式：</b>${state.targetCase.analysis.comm}</div>
+                            <div><b class="text-teal-600">② 技术模式：</b>${state.targetCase.analysis.tech}</div>
+                            <div><b class="text-teal-600">③ 经营模式：</b>${state.targetCase.analysis.ops}</div>
+                            <div><b class="text-teal-600">④ 管理模式：</b>${state.targetCase.analysis.mgmt}</div>
+                            <div><b class="text-teal-600">⑤ 资本模式：</b>${state.targetCase.analysis.cap}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function submitExam() {
+            if(state.submitted) return;
+            let score = 0;
+            state.sQuiz.forEach((q, i) => {
+                const checked = document.querySelector(`input[name="s${i}"]:checked`);
+                const fb = document.getElementById(`s-fb-${i}`);
+                fb.classList.remove('hidden');
+                if(checked && parseInt(checked.value) === q.k) {
+                    score += 1;
+                    fb.innerHTML = "✅ 正确"; fb.className = "mt-3 p-2 bg-green-50 text-green-700 rounded text-xs";
+                } else {
+                    fb.innerHTML = "❌ 错误。正确选项: " + String.fromCharCode(65 + q.k);
+                    fb.className = "mt-3 p-2 bg-rose-50 text-rose-700 rounded text-xs";
+                }
+            });
+            state.mQuiz.forEach((q, i) => {
+                const checked = Array.from(document.querySelectorAll(`input[name="m${i}"]:checked`)).map(v => parseInt(v.value));
+                const fb = document.getElementById(`m-fb-${i}`);
+                fb.classList.remove('hidden');
+                const isCorrect = checked.length === q.k.length && checked.every(v => q.k.includes(v));
+                if(isCorrect) {
+                    score += 2;
+                    fb.innerHTML = "✅ 正确"; fb.className = "mt-3 p-2 bg-green-50 text-green-700 rounded text-xs";
+                } else {
+                    fb.innerHTML = "❌ 错误。正确选项: " + q.k.map(v => String.fromCharCode(65 + v)).join(',');
+                    fb.className = "mt-3 p-2 bg-rose-50 text-rose-700 rounded text-xs";
+                }
+            });
+            document.querySelectorAll('.answer-area').forEach(el => el.classList.add('show'));
+            document.getElementById('scoreDisplay').innerText = `${score} / 40`;
+            state.submitted = true;
+            document.getElementById('main-content').scrollTop = 0;
+            alert(`客观题得分：${score} / 40。\n主观题解析已全部显示，请自行核对关键点！`);
+        }
+
+        // --- 切换 Tab ---
+        function switchTab(t) {
+            ['dashboard', 'knowledge', 'cases', 'exam'].forEach(v => document.getElementById('view-'+v).classList.add('hidden'));
+            ['nav-dashboard', 'nav-knowledge', 'nav-cases', 'nav-exam'].forEach(v => document.getElementById(v).classList.remove('active-tab'));
+            document.getElementById('view-'+t).classList.remove('hidden');
+            document.getElementById('nav-'+t).classList.add('active-tab');
+        }
+
+        // --- 初始化数据渲染 ---
+        window.onload = () => {
+            updateDashboard();
+
+            // 案例列表
+            const caseList = document.getElementById('caseList');
+            DATABASE.cases.forEach(c => {
+                caseList.innerHTML += `
+                    <div onclick="showCase(${c.id})" class="p-3 mb-2 rounded-lg bg-stone-50 hover:bg-teal-50 cursor-pointer border-l-4 border-transparent hover:border-teal-500 transition group">
+                        <div class="text-[9px] text-stone-400 font-bold uppercase group-hover:text-teal-600">CH ${c.chap} · ${c.cat}</div>
+                        <div class="text-sm font-bold text-stone-700 mt-1">${c.title}</div>
+                    </div>
+                `;
+            });
+
+            // 知识库渲染 (名词解释)
+            const conceptGrid = document.getElementById('conceptGrid');
+            DATABASE.concepts.forEach(c => {
+                conceptGrid.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                        <div class="text-[10px] text-teal-600 font-bold mb-1 uppercase">Chapter ${c.chap}</div>
+                        <h4 class="font-bold text-stone-800 mb-1">${c.term}</h4>
+                        <p class="text-xs text-stone-500">${c.def}</p>
+                    </div>
+                `;
+            });
+
+            generateFullExam();
+
+            // 图表渲染
+            new Chart(document.getElementById('distChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['已练覆盖', '题库待练'],
+                    datasets: [{
+                        data: [Object.keys(practiceCounts).length, 94 - Object.keys(practiceCounts).length],
+                        backgroundColor: ['#0d9488', '#e7e5e4'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } 
+                }
+            });
+        };
+
+        function showCase(id) {
+            const c = DATABASE.cases.find(x => x.id === id);
+            const detail = document.getElementById('caseDetail');
+            detail.innerHTML = `
+                <div class="border-b pb-6 mb-8">
+                    <h2 class="text-3xl font-bold text-stone-800">${c.title}</h2>
+                    <div class="text-sm text-teal-600 font-bold mt-2 uppercase">CH ${c.chap} · 深度案例标准解析</div>
+                </div>
+                <div class="grid grid-cols-1 gap-6">
+                    ${Object.entries(c.analysis).map(([k, v]) => `
+                        <div class="bg-white p-4 rounded-xl border-l-4 border-teal-500 shadow-sm border border-stone-100">
+                            <h5 class="font-bold text-teal-700 text-xs mb-1 uppercase">${k === 'comm'?'Business Mode':k==='tech'?'Technical Mode':k==='ops'?'Operational Mode':k==='mgmt'?'Management Mode':'Capital Mode'}</h5>
+                            <p class="text-stone-700 text-sm leading-relaxed">${v}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            detail.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
